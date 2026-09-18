@@ -1,0 +1,77 @@
+{# Library - Book Detail Template (Laboratorio N° 4: Relación de Modelos) #}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ book.title }} - Library</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 860px; margin: 40px auto; padding: 0 20px; color: #2c3e50; }
+        .card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 24px 28px; }
+        h1 { color: #1a5276; margin-top: 0; }
+        h2 { border-bottom: 2px solid #3498db; padding-bottom: 6px; font-size: 1.25rem; color: #1a5276; }
+        ul { margin: 8px 0; }
+        .meta { color: #7f8c8d; }
+        .tag { display: inline-block; background: #3498db; color: #fff; padding: 3px 10px; border-radius: 12px; font-size: 0.85rem; margin-right: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #dee2e6; }
+        th { background: #ecf0f1; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>{{ book.title }}</h1>
+        <p class="meta"><strong>ISBN:</strong> {{ book.isbn }}</p>
+        <p>{{ book.summary }}</p>
+
+        <h2>Author</h2>
+        <p>
+            {{ book.author.first_name }} {{ book.author.last_name }}<br>
+            <span class="meta">{{ book.author.email }}</span>
+        </p>
+        {% if book.author.profile %}
+            <p>
+                <em>{{ book.author.profile.biography }}</em><br>
+                <a href="{{ book.author.profile.website }}">{{ book.author.profile.website }}</a><br>
+                {% if book.author.profile.photo %}
+                    <img src="{{ book.author.profile.photo.url }}" alt="Author photo" width="120">
+                {% endif %}
+            </p>
+        {% else %}
+            <p class="meta">This author does not have a public profile.</p>
+        {% endif %}
+
+        <h2>Categories</h2>
+        {% if book.categories.all %}
+            {% for category in book.categories.all %}
+                <span class="tag">{{ category.name }}</span>
+            {% endfor %}
+        {% else %}
+            <p class="meta">No categories assigned.</p>
+        {% endif %}
+
+        <h2>Publication History (Through Model)</h2>
+        {% if book.publications.all %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Publisher</th>
+                        <th>Edition</th>
+                        <th>Publication Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for publication in book.publications.all %}
+                        <tr>
+                            <td>{{ publication.publisher.name }}</td>
+                            <td>{{ publication.edition }}</td>
+                            <td>{{ publication.publication_date|date:"F d, Y" }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p class="meta">No publication history registered.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
