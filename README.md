@@ -58,6 +58,110 @@ Posee atributos propios: `publication_date` (DateField) y `edition`
 (`PositiveIntegerField`, default=1), con `unique_together = ('book', 'publisher', 'edition')`.
 Permite registrar el historial de ediciones de un libro por editorial.
 
+### Esquema de relaciones (ER)
+
+```
+                        ┌──────────────────┐
+                        │      Author      │
+                        │ id, first_name,  │
+                        │ last_name, email │
+                        └────────┬─────────┘
+                                 │
+                  ┌──────────────┴───────────────┐
+                  │ 1:1 (OneToOneField)          │ 1:N (ForeignKey)
+                  ▼                              ▼
+        ┌──────────────────┐          ┌──────────────────────────┐
+        │  AuthorProfile   │          │          Book            │
+        │ id=author_id (PK)│          │ id, title, isbn, summary │
+        │ biography,       │          │ author_id (FK a Author)  │
+        │ website, photo   │          └──────┬──────────┬────────┘
+        └──────────────────┘                 │          │
+                                     N:M      │          │ M:N (through)
+                                 ┌───────────┴──┐  ┌─────┴─────┐
+                                 │   Category   │  │ Publisher │
+                                 │ id, name,    │  │ id, name, │
+                                 │ description  │  │ address,  │
+                                 └──────────────┘  │ website   │
+                                                    └─────┬─────┘
+                                                          │ 1:N (ForeignKey)
+                                                          ▼
+                                          ┌──────────────────────────┐
+                                          │    Publication (through) │
+                                          │ book_id (FK),            │
+                                          │ publisher_id (FK),       │
+                                          │ publication_date,        │
+                                          │ edition                  │
+                                          └──────────────────────────┘
+```
+
+Cardinalidades:
+- `Author` 1 — 1 `AuthorProfile` (perfil único por autor).
+- `Author` 1 — N `Book` (un autor escribe muchos libros).
+- `Book` N — M `Category` (varios temas; tabla intermedia automática `book_categories`).
+- `Book` N — M `Publisher` a través de `Publication` (un libro lo publican varias
+  editoriales en diferentes ediciones y una editorial publica varios libros).
+- `Publication` N — 1 `Book` y N — 1 `Publisher` (cada fila del historial enlaza
+  un libro con una editorial en una edición concreta).
+
+Versión Mermaid (renderiza en GitHub, VS Code y Obsidian):
+
+```mermaid
+erDiagram
+    AUTHOR ||--|| AUTHOR_PROFILE : "one-to-one"
+    AUTHOR ||--o{ BOOK : "1:N"
+
+    BOOK {
+        int id PK
+        varchar(200) title
+        char(13) isbn UK
+        text summary
+        int author_id FK
+    }
+
+    BOOK }o--o{ CATEGORY : "N:M (automatic)"
+    BOOK }o--o{ PUBLISHER : "N:M via Publication"
+    BOOK ||--o{ PUBLICATION : "1:N"
+    PUBLISHER ||--o{ PUBLICATION : "1:N"
+
+    PUBLICATION {
+        int id PK
+        int book_id FK
+        int publisher_id FK
+        date publication_date
+        int edition
+    }
+```
+
+### Observaciones sobre las decisiones de diseño
+
+- **`OneToOneField` con `primary_key=True` en `AuthorProfile`**: garantiza que
+  cada autor tenga como máximo un perfil y convierte el campo `author` en la
+  clave primaria del perfil, eliminando un id redundante. Un perfil no tiene
+  sentido sin su autor, por lo que `on_delete=CASCADE` es la opción coherente.
+- **`ForeignKey` en `Book.author`**: un libro pertenece a un único autor y el
+  `related_name='books'` expone la consulta inversa `author.books.all()`, más
+  legible que el `book_set` por defecto.
+- **`ManyToManyField` en `Book.categories` sin `through`**: la relación
+  libro-categoría es puramente de pertenencia (sin datos extra), por lo que la
+  tabla intermedia automática `book_categories` es suficiente.
+- **`ManyToManyField` en `Book.publishers` con `through='Publication'`**: se
+  necesita registrar atributos de la relación (fecha y edición); una M2M
+  automática no permite almacenarlos. Por eso se declara el modelo intermedio
+  de forma explícita.
+- **`unique_together` en `Publication`**: impide duplicar la misma edición del
+  mismo libro en la misma editorial, garantizando un historial consistente.
+- **`on_delete=CASCADE` en todos los FKs**: al depender el libro, el perfil y el
+  historial de publicación de sus padres, la eliminación en cascada mantiene la
+  integridad referencial sin dejar registros huérfanos.
+- **`related_name` en todas las FKs y M2M**: nombres explícitos y predecibles
+  (`books`, `profile`, `publications`) para la navegación bidireccional del ORM.
+- **`ordering` en los `Meta`**: orden por defecto estable (por nombre/título o
+  fecha de publicación) que mejora la consistencia en admin, listados y consultas.
+- **`select_related` + `prefetch_related` en la vista**: la primera resuelve las
+  FK y relaciones 1:1 con `JOIN`; la segunda resuelve las M2M y relaciones
+  inversas en lotes. Con esta estrategia `book_detail` ejecuta 4 consultas
+  constantes en lugar de una por cada publicación/categoría (problema N+1).
+
 ## 4. Configuración de medios (Pillow)
 
 En `config/settings.py`:
